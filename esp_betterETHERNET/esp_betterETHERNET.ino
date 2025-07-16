@@ -171,18 +171,11 @@ void loop(void) {
 
 
         
-    //       if (Method == "POST" ) {
-    //         if (Path == "/power") {
-    //           int Body = MSG.lastIndexOf("}"); 
-    //           if (Body != -1) {
-    //             String CMD = MSG.substring(Body); 
-    //             Serial.println("The command is");
-    //             Serial.println(CMD);
-    //             power(CMD);
-    //           }
-    //         }
-
-    //       } 
+          if (Method == "POST" ) {
+            if (Path == "/power") {
+              power(body);
+            }
+          } 
 
 
 
