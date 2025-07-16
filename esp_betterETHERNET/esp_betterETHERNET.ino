@@ -44,17 +44,32 @@ void power(const String& CMD) {
   JsonDocument json;
 	DeserializationError error = deserializeJson(json, CMD);
   if (error) { Serial.println("Failed to prase"); return; }
+  
   //server.send(200, "application/json", "{}");
+
   client.println("HTTP/1.1 200 OK");
   client.println("Content-Type: application/json");
   client.println("Connection: close");  
   //client.println("Refresh: 5");  // refresh the page automatically every 5 sec
   client.println();
-  String pinNum = json["pin"].as<String>();
-  bool state = json["power"];
-  
-  
-  int pin = -1; 
+
+  JsonArray array;
+  if (json.is<JsonArray>()) {
+    array = json.as<JsonArray>();
+  } else if (json.is<JsonObject>()) {
+    array = json.to<JsonArray>();
+    array.add(json.as<JsonObject>());
+  } else {
+    Serial.println("Invalid JSON structure");
+    return;
+  }
+
+  for (int i = 0; i < array.size(); i++) {
+    JsonObject obj = array[i];
+    String pinNum = obj["pin"].as<String>();
+    bool state = obj["power"];
+
+     int pin = -1; 
   if (pinNum == "boot_1") {
     pin = 48;
   }
@@ -77,6 +92,12 @@ void power(const String& CMD) {
     digitalWrite(pin, LOW);
   }
 }
+    
+  }
+
+  
+  
+  
  
 
 void setup() {
