@@ -1,19 +1,3 @@
-/*
-    Go to thingspeak.com and create an account if you don't have one already.
-    After logging in, click on the "New Channel" button to create a new channel for your data. This is where your data will be stored and displayed.
-    Fill in the Name, Description, and other fields for your channel as desired, then click the "Save Channel" button.
-    Take note of the "Write API Key" located in the "API keys" tab, this is the key you will use to send data to your channel.
-    Replace the channelID from tab "Channel Settings" and privateKey with "Read API Keys" from "API Keys" tab.
-    Replace the host variable with the thingspeak server hostname "api.thingspeak.com"
-    Upload the sketch to your ESP32 board and make sure that the board is connected to the internet. The ESP32 should now send data to your Thingspeak channel at the intervals specified by the loop function.
-    Go to the channel view page on thingspeak and check the "Field1" for the new incoming data.
-    You can use the data visualization and analysis tools provided by Thingspeak to display and process your data in various ways.
-    Please note, that Thingspeak accepts only integer values.
-
-    You can later check the values at https://thingspeak.com/channels/2005329
-    Please note that this public channel can be accessed by anyone and it is possible that more people will write their values.
- */
-
 #include <SPI.h>
 #include <Ethernet.h>
 #include <NetworkClient.h>
@@ -29,6 +13,8 @@
 #define W5500_MOSI  11  // MOSI pin
 #define W5500_SCK   13  // Clock pin
 
+#define DEBUG true
+
 EthernetClient client;
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
@@ -38,12 +24,15 @@ const char *password = "UKCWLinternet!";  // Change this to your WiFi password
 
 EthernetServer server(80);
 
+// Function that takes the json string (CMD) and then calls another function
 
+
+// changePowerState(String pin, bool state)
 
 void power(const String& CMD) {
   JsonDocument json;
 	DeserializationError error = deserializeJson(json, CMD);
-  if (error) { Serial.println("Failed to prase"); return; }
+  if (error) { Serial.println("Failed to parse"); return; }
   
   //server.send(200, "application/json", "{}");
 
@@ -53,16 +42,8 @@ void power(const String& CMD) {
   //client.println("Refresh: 5");  // refresh the page automatically every 5 sec
   client.println();
 
-  JsonArray array;
-  if (json.is<JsonArray>()) {
-    array = json.as<JsonArray>();
-  } else if (json.is<JsonObject>()) {
-    array = json.to<JsonArray>();
-    array.add(json.as<JsonObject>());
-  } else {
-    Serial.println("Invalid JSON structure");
-    return;
-  }
+  JsonArray array = json.as<JsonArray>();
+
 
   for (int i = 0; i < array.size(); i++) {
     JsonObject obj = array[i];
@@ -136,49 +117,56 @@ void loop(void) {
     boolean currentLineIsBlank = true;
     String MSG = "";
 
-    // while (client.connected()) {
-    //   if (client.available()) {
-    //     char c = client.read();
-    //     Serial.write(c);
-    //     MSG += c;
-    //   }
-    // }
+    // 1st while: Gets MSG until blank line
+    while (client.connected()) {
+      if (client.available()) {
+        char c = client.read();
+        Serial.write(c);
+        MSG += c;
+      }
+    }
 
-    Serial.println("Message is");
-    Serial.println(MSG);
+    if (DEBUG) Serial.println("Message is");
+    if (DEBUG) Serial.println(MSG);
 
+    // 2nd while: Continueing to get input to read body
+
+    // call power function(s)
+
+    // Restructure wile loop to gather and build the MSG,
+    //    but handle the MSG after the while loop instead of inside
     while (client.connected()) {
       if (client.available()) {
         char c = client.read();
         Serial.write(c);
         MSG+= c;
         if (c == '\n' && currentLineIsBlank) {
-          Serial.println("Message is");
-          Serial.println(MSG);
+          if (DEBUG) Serial.println("Message is");
+          if (DEBUG) Serial.println(MSG);
 
           String Firstline = MSG.substring(0, MSG.indexOf("\n"));
-          Serial.println("Firstline is");
-          Serial.println(Firstline);
+          if (DEBUG) Serial.println("Firstline is");
+          if (DEBUG) Serial.println(Firstline);
 
           String Method = Firstline.substring(0, Firstline.indexOf(" "));
-          Serial.println("Method Is");
-          Serial.println(Method);
+          if (DEBUG) Serial.println("Method Is");
+          if (DEBUG) Serial.println(Method);
 
           String Path = Firstline.substring(Firstline.indexOf(" ") + 1, Firstline.indexOf(" ", Firstline.indexOf(" ")+ 1));
-          Serial.println("Path Is");
-          Serial.println(Path);
+          if (DEBUG) Serial.println("Path Is");
+          if (DEBUG) Serial.println(Path);
 
           String MSG_Remove_Empty_Line = MSG.substring(0, MSG.lastIndexOf("\n") - 2);
-          Serial.println("MSG_Remove_Empty_Line");
-          Serial.println(MSG_Remove_Empty_Line);
+          if (DEBUG) Serial.println("MSG_Remove_Empty_Line");
+          if (DEBUG) Serial.println(MSG_Remove_Empty_Line);
 
           String Lastline = MSG_Remove_Empty_Line.substring(MSG_Remove_Empty_Line.lastIndexOf("\n") + 1, MSG_Remove_Empty_Line.length());
-          Serial.println("Lastline Is");
-          Serial.println(Lastline);
+          if (DEBUG) Serial.println("Lastline Is");
+          if (DEBUG) Serial.println(Lastline);
 
           String ContentLengthSTR = Lastline.substring(Lastline.indexOf(":") + 2 , Lastline.length());
-          Serial.println("ContentLengthSTR Is");
-          Serial.println(ContentLengthSTR);
+          if (DEBUG) Serial.println("ContentLengthSTR Is");
+          if (DEBUG) Serial.println(ContentLengthSTR);
 
           int ContentLengthNUM = ContentLengthSTR.toInt();
 
@@ -187,8 +175,8 @@ void loop(void) {
             char c = client.read();
             body += c;
           }
-          Serial.println("body Is");
-          Serial.println(body);
+          if (DEBUG) Serial.println("body Is");
+          if (DEBUG) Serial.println(body);
 
 
         
