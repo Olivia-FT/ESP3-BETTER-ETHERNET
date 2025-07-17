@@ -16,6 +16,8 @@
 
 #define DEBUG true
 
+String status = "";
+
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
 const char *ssid = "HIDGuest";          // Change this to your WiFi SSID
@@ -92,6 +94,15 @@ void changePowerState(JsonArray array) {
 void changePowerStateReal(int pin, bool state) {
     if (state) digitalWrite(pin, HIGH);
     else digitalWrite(pin, LOW);
+}
+
+void returnToClient(EthernetClient client){
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Connection: close");  // the connection will be closed after completion of the response
+    //client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+    client.println();
+    client.println("{}");
 }
 
 void setup() {
@@ -180,13 +191,6 @@ void loop(void) {
       }
     }
 
-    client.println("HTTP/1.1 200 OK");
-    client.println("Content-Type: application/json");
-    client.println("Connection: close");  // the connection will be closed after completion of the response
-    //client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-    client.println();
-    client.println("{}");
-
     if (DEBUG) Serial.println("body Is");
     if (DEBUG) Serial.println(body);
 
@@ -198,24 +202,41 @@ void loop(void) {
     }
     else if (Method == "GET") {
         if (Path == "/flashing") {
+            returnToClient(client);
+            status = "flashing";
             command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}]");
         }
         else if (Path == "/boot/1") {
+            returnToClient(client);
+            status = "boot_1";
             command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}, {\"pin\" : \"boot_1\", \"power\" : true, \"pulse\" : true}]");
         }
         else if (Path == "/boot/2") {
+            returnToClient(client);
+            status = "boot_2";
             command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}, {\"pin\" : \"boot_2\", \"power\" : true, \"pulse\" : true}]");
         }
         else if (Path == "/boot/3") {
+            returnToClient(client);
+            status = "boot_3";
             command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}, {\"pin\" : \"boot_3\", \"power\" : true, \"pulse\" : true}]");
         }
         else if (Path == "/boot/4") {
+            returnToClient(client);
+            status = "boot_4";
             command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}, {\"pin\" : \"boot_4\", \"power\" : true, \"pulse\" : true}]");
         }
+        else if (Path == "/status") {
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-Type: application/json");
+            client.println("Connection: close");  // the connection will be closed after completion of the response
+            //client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+            client.println();
+            client.println("{\"status\": \"" + status + "\"}");
+        }
+
 
     }
-
-  
 
     // give the web browser time to receive the data
     delay(1);
