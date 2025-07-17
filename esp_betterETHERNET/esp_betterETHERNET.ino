@@ -5,6 +5,7 @@
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <ArduinoJson.h>
+#include <vector>
 
 #define W5500_CS    14  // Chip Select pin
 #define W5500_RST    9  // Reset pin
@@ -13,9 +14,8 @@
 #define W5500_MOSI  11  // MOSI pin
 #define W5500_SCK   13  // Clock pin
 
-#define DEBUG false
+#define DEBUG true
 
-//EthernetClient client;
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
 const char *ssid = "HIDGuest";          // Change this to your WiFi SSID
@@ -23,7 +23,18 @@ const char *password = "UKCWLinternet!";  // Change this to your WiFi password
 
 EthernetServer server(80);
 
-// Function that takes the json string (CMD) and then calls another function
+// Time stuffs
+struct TimedAction {
+  unsigned long triggerTime;
+  int pin;
+  bool state;
+};
+
+unsigned long currentMillis;
+const unsigned long oneSecond = 1000;
+const unsigned long twoSeconds = 2000;
+std::vector<TimedAction> timedActionsVec;
+
 void command(const String& CMD) {
   JsonDocument json;
   DeserializationError error = deserializeJson(json, CMD);
@@ -41,6 +52,7 @@ void changePowerState(JsonArray array) {
     JsonObject obj = array[i];
     String pinNum = obj["pin"].as<String>();
     bool state = obj["power"];
+    bool pulse = obj["pulse"];
 
     int pin = -1;
     if (pinNum == "boot_1") {
@@ -55,12 +67,31 @@ void changePowerState(JsonArray array) {
       pin = 41;
     }
 
-    if (state) {
-      digitalWrite(pin, HIGH);
-    } else {
-      digitalWrite(pin, LOW);
+    changePowerStateReal(pin, state);
+
+    if (pulse) {
+      unsigned long pulseTime;
+      if(pinNum == "reset") pulseTime = oneSecond;
+      else pulseTime = twoSeconds;
+
+      if (DEBUG) Serial.println("pulseTime is: ");
+      if (DEBUG) Serial.println(pulseTime);
+
+      if (DEBUG) Serial.println("pin is: ");
+      if (DEBUG) Serial.println(pin);
+
+      if (DEBUG) Serial.println("!state is: ");
+      if (DEBUG) Serial.println(!state);
+
+      TimedAction newAction = {currentMillis + pulseTime, pin, !state};
+      timedActionsVec.push_back(newAction);
     }
   }
+}
+
+void changePowerStateReal(int pin, bool state) {
+    if (state) digitalWrite(pin, HIGH);
+    else digitalWrite(pin, LOW);
 }
 
 void setup() {
@@ -86,95 +117,83 @@ void setup() {
 
   server.begin();
   Serial.println("HTTP server started");
+
+  currentMillis = millis();
 }
 
 void loop(void) {
-  // listen for incoming clients
+  currentMillis = millis();
   EthernetClient client = server.available();
+
   if (client) {
     Serial.println("new client");
-    // an http request ends with a blank line
+
     boolean currentLineIsBlank = true;
     String MSG = "";
 
-    // 1st while: Gets MSG until blank line
+    // Gather Header
     while (client.connected()) {
       if (client.available()) {
         char c = client.read();
-        Serial.write(c);
+        if (DEBUG) Serial.write(c);
         MSG += c;
-        if (c == '\n' && currentLineIsBlank) {
-          if (DEBUG) Serial.println("Message is");
-          if (DEBUG) Serial.println(MSG);
+        if (c == '\n' && currentLineIsBlank) break;
+        if (c == '\n') currentLineIsBlank = true;
+        else if (c != '\r') currentLineIsBlank = false;
+      }
+    }
 
-          String Firstline = MSG.substring(0, MSG.indexOf("\n"));
-          String Method = Firstline.substring(0, Firstline.indexOf(" "));
-          String Path = Firstline.substring(Firstline.indexOf(" ") + 1, Firstline.indexOf(" ", Firstline.indexOf(" ") + 1));
+    // Handle Header
+    if (DEBUG) Serial.println("Message is");
+    if (DEBUG) Serial.println(MSG);
 
-          if (DEBUG) {
-            Serial.println("Firstline: " + Firstline);
-            Serial.println("Method: " + Method);
-            Serial.println("Path: " + Path);
-          }
+    String Firstline = MSG.substring(0, MSG.indexOf("\n"));
+    String Method = Firstline.substring(0, Firstline.indexOf(" "));
+    String Path = Firstline.substring(Firstline.indexOf(" ") + 1, Firstline.indexOf(" ", Firstline.indexOf(" ") + 1));
 
-          String MSG_Remove_Empty_Line = MSG.substring(0, MSG.lastIndexOf("\n") - 2);
-          if (DEBUG) Serial.println("MSG_Remove_Empty_Line");
-          if (DEBUG) Serial.println(MSG_Remove_Empty_Line);
+    if (DEBUG) {
+      Serial.println("Firstline: " + Firstline);
+      Serial.println("Method: " + Method);
+      Serial.println("Path: " + Path);
+    }
 
-          String Lastline = MSG_Remove_Empty_Line.substring(MSG_Remove_Empty_Line.lastIndexOf("\n") + 1, MSG_Remove_Empty_Line.length());
-          if (DEBUG) Serial.println("Lastline Is");
-          if (DEBUG) Serial.println(Lastline);
+    String MSG_Remove_Empty_Line = MSG.substring(0, MSG.lastIndexOf("\n") - 2);
+    if (DEBUG) Serial.println("MSG_Remove_Empty_Line");
+    if (DEBUG) Serial.println(MSG_Remove_Empty_Line);
 
-          String ContentLengthSTR = Lastline.substring(Lastline.indexOf(":") + 2 , Lastline.length());
-          if (DEBUG) Serial.println("ContentLengthSTR Is");
-          if (DEBUG) Serial.println(ContentLengthSTR);
+    String Lastline = MSG_Remove_Empty_Line.substring(MSG_Remove_Empty_Line.lastIndexOf("\n") + 1, MSG_Remove_Empty_Line.length());
+    if (DEBUG) Serial.println("Lastline Is");
+    if (DEBUG) Serial.println(Lastline);
 
-          int ContentLengthNUM = ContentLengthSTR.toInt();
+    String ContentLengthSTR = Lastline.substring(Lastline.indexOf(":") + 2 , Lastline.length());
+    if (DEBUG) Serial.println("ContentLengthSTR Is");
+    if (DEBUG) Serial.println(ContentLengthSTR);
 
-          // 2nd while: Continuing to get input to read body
-          String body = "";
-          while (body.length() < ContentLengthNUM && client.connected()) {
-            if (client.available()) {
-              char c = client.read();
-              body += c;
-            }
-          }
+    int ContentLengthNUM = ContentLengthSTR.toInt();
 
-          if (DEBUG) Serial.println("body Is");
-          if (DEBUG) Serial.println(body);
+    // Handle Body
+    String body = "";
+    while (body.length() < ContentLengthNUM && client.connected()) {
+      if (client.available()) {
+        char c = client.read();
+        body += c;
+      }
+    }
 
-          // call power function(s)
-          if (Method == "POST") {
-            if (Path == "/power") {
-              command(body);
-            }
-          }
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Connection: close");  // the connection will be closed after completion of the response
+    //client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+    client.println();
+    client.println("{}");
 
-          client.println("HTTP/1.1 200 OK");
-          client.println("Content-Type: application/json");
-          client.println("Connection: close");  // the connection will be closed after completion of the response
-          client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-          client.println();
-          client.println("{}");
-          for (int analogChannel = 0; analogChannel < 6; analogChannel++) {
-            int sensorReading = analogRead(analogChannel);
-            client.print("analog input ");
-            client.print(analogChannel);
-            client.print(" is ");
-            client.print(sensorReading);
-            client.println("<br />");
-          }
-          client.println("</html>");
-          break;
-        }
+    if (DEBUG) Serial.println("body Is");
+    if (DEBUG) Serial.println(body);
 
-        if (c == '\n') {
-          // you're starting a new line
-          currentLineIsBlank = true;
-        } else if (c != '\r') {
-          // you've gotten a character on the current line
-          currentLineIsBlank = false;
-        }
+    // call power function(s)
+    if (Method == "POST") {
+      if (Path == "/power") {
+        command(body);
       }
     }
 
@@ -183,5 +202,15 @@ void loop(void) {
     // close the connection:
     client.stop();
     Serial.println("client disconnected");
+  }
+
+  for (int i = 0; i < timedActionsVec.size(); i++) {
+    TimedAction action = timedActionsVec[i];
+
+    if(action.triggerTime <= currentMillis) {
+      changePowerStateReal(action.pin, action.state);
+      timedActionsVec.erase(timedActionsVec.begin() + i);
+      i--;
+    }
   }
 }
