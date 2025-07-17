@@ -196,6 +196,26 @@ void loop(void) {
         command(body);
       }
     }
+    else if (Method == "GET") {
+        if (Path == "/flashing") {
+            command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}]");
+        }
+        else if (Path == "/boot/1") {
+            command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}, {\"pin\" : \"boot_1\", \"power\" : true, \"pulse\" : true}]");
+        }
+        else if (Path == "/boot/2") {
+            command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}, {\"pin\" : \"boot_2\", \"power\" : true, \"pulse\" : true}]");
+        }
+        else if (Path == "/boot/3") {
+            command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}, {\"pin\" : \"boot_3\", \"power\" : true, \"pulse\" : true}]");
+        }
+        else if (Path == "/boot/4") {
+            command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}, {\"pin\" : \"boot_4\", \"power\" : true, \"pulse\" : true}]");
+        }
+
+    }
+
+  
 
     // give the web browser time to receive the data
     delay(1);
