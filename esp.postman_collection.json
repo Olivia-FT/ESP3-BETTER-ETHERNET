@@ -1,0 +1,232 @@
+{
+	"info": {
+		"_postman_id": "355ce35e-0006-488d-800d-75882eaf55b7",
+		"name": "esp",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "36834255"
+	},
+	"item": [
+		{
+			"name": "reset via json",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}]",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "10.36.87.97/power",
+					"host": [
+						"10",
+						"36",
+						"87",
+						"97"
+					],
+					"path": [
+						"power"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "boot1 via json",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "[{\"pin\" : \"boot_1\", \"power\" : true, \"pulse\" : true}, {\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}]",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "10.36.87.97/power",
+					"host": [
+						"10",
+						"36",
+						"87",
+						"97"
+					],
+					"path": [
+						"power"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "boot2 via json",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "[{\"pin\" : \"boot_2\", \"power\" : true, \"pulse\" : true}, {\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}]",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "10.36.87.97/power",
+					"host": [
+						"10",
+						"36",
+						"87",
+						"97"
+					],
+					"path": [
+						"power"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "reset get",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "[{\"pin\" : \"boot_2\", \"power\" : true, \"pulse\" : true}, {\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}]"
+				},
+				"url": {
+					"raw": "10.36.87.97/flashing",
+					"host": [
+						"10",
+						"36",
+						"87",
+						"97"
+					],
+					"path": [
+						"flashing"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "boot1 get",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "[{\"pin\" : \"boot_2\", \"power\" : true, \"pulse\" : true}, {\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}]"
+				},
+				"url": {
+					"raw": "10.36.87.97/reset",
+					"host": [
+						"10",
+						"36",
+						"87",
+						"97"
+					],
+					"path": [
+						"reset"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "boot2 get",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "[{\"pin\" : \"boot_2\", \"power\" : true, \"pulse\" : true}, {\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}]"
+				},
+				"url": {
+					"raw": "10.36.87.97/reset",
+					"host": [
+						"10",
+						"36",
+						"87",
+						"97"
+					],
+					"path": [
+						"reset"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
