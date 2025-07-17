@@ -1,19 +1,3 @@
-/*
-    Go to thingspeak.com and create an account if you don't have one already.
-    After logging in, click on the "New Channel" button to create a new channel for your data. This is where your data will be stored and displayed.
-    Fill in the Name, Description, and other fields for your channel as desired, then click the "Save Channel" button.
-    Take note of the "Write API Key" located in the "API keys" tab, this is the key you will use to send data to your channel.
-    Replace the channelID from tab "Channel Settings" and privateKey with "Read API Keys" from "API Keys" tab.
-    Replace the host variable with the thingspeak server hostname "api.thingspeak.com"
-    Upload the sketch to your ESP32 board and make sure that the board is connected to the internet. The ESP32 should now send data to your Thingspeak channel at the intervals specified by the loop function.
-    Go to the channel view page on thingspeak and check the "Field1" for the new incoming data.
-    You can use the data visualization and analysis tools provided by Thingspeak to display and process your data in various ways.
-    Please note, that Thingspeak accepts only integer values.
-
-    You can later check the values at https://thingspeak.com/channels/2005329
-    Please note that this public channel can be accessed by anyone and it is possible that more people will write their values.
- */
-
 #include <SPI.h>
 #include <Ethernet.h>
 #include <NetworkClient.h>
@@ -21,6 +5,7 @@
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <ArduinoJson.h>
+#include <vector>
 
 #define W5500_CS    14  // Chip Select pin
 #define W5500_RST    9  // Reset pin
@@ -29,76 +14,96 @@
 #define W5500_MOSI  11  // MOSI pin
 #define W5500_SCK   13  // Clock pin
 
-EthernetClient client;
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+#define DEBUG true
 
+String status = "";
+
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
 const char *ssid = "HIDGuest";          // Change this to your WiFi SSID
 const char *password = "UKCWLinternet!";  // Change this to your WiFi password
 
 EthernetServer server(80);
 
+// Time stuffs
+struct TimedAction {
+  unsigned long triggerTime;
+  int pin;
+  bool state;
+};
 
+unsigned long currentMillis;
+const unsigned long oneSecond = 1000;
+const unsigned long twoSeconds = 2000;
+std::vector<TimedAction> timedActionsVec;
 
-void power(const String& CMD) {
+void command(const String& CMD) {
   JsonDocument json;
-	DeserializationError error = deserializeJson(json, CMD);
-  if (error) { Serial.println("Failed to prase"); return; }
-  
-  //server.send(200, "application/json", "{}");
-
-  client.println("HTTP/1.1 200 OK");
-  client.println("Content-Type: application/json");
-  client.println("Connection: close");  
-  //client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-  client.println();
-
-  JsonArray array;
-  if (json.is<JsonArray>()) {
-    array = json.as<JsonArray>();
-  } else if (json.is<JsonObject>()) {
-    array = json.to<JsonArray>();
-    array.add(json.as<JsonObject>());
-  } else {
-    Serial.println("Invalid JSON structure");
+  DeserializationError error = deserializeJson(json, CMD);
+  if (error) {
+    Serial.println("Failed to parse");
     return;
   }
 
+  JsonArray array = json.as<JsonArray>();
+  changePowerState(array);
+}
+
+void changePowerState(JsonArray array) {
   for (int i = 0; i < array.size(); i++) {
     JsonObject obj = array[i];
     String pinNum = obj["pin"].as<String>();
     bool state = obj["power"];
+    bool pulse = obj["pulse"];
 
-     int pin = -1; 
-  if (pinNum == "boot_1") {
-    pin = 48;
-  }
-  else if (pinNum == "boot_2") {
-    pin = 47;
-  }
-  else if (pinNum == "boot_3") {
-    pin = 46;
-  }
-  else if (pinNum == "boot_4") {
-    pin = 42;
-  }
-  else if (pinNum == "reset") {
-    pin = 41;
-  }
+    int pin = -1;
+    if (pinNum == "boot_1") {
+      pin = 48;
+    } else if (pinNum == "boot_2") {
+      pin = 47;
+    } else if (pinNum == "boot_3") {
+      pin = 46;
+    } else if (pinNum == "boot_4") {
+      pin = 42;
+    } else if (pinNum == "reset") {
+      pin = 41;
+    }
 
-  if (state) {
-    digitalWrite(pin, HIGH);
-  } else {
-    digitalWrite(pin, LOW);
+    changePowerStateReal(pin, state);
+
+    if (pulse) {
+      unsigned long pulseTime;
+      if(pinNum == "reset") pulseTime = oneSecond;
+      else pulseTime = twoSeconds;
+
+      if (DEBUG) Serial.println("pulseTime is: ");
+      if (DEBUG) Serial.println(pulseTime);
+
+      if (DEBUG) Serial.println("pin is: ");
+      if (DEBUG) Serial.println(pin);
+
+      if (DEBUG) Serial.println("!state is: ");
+      if (DEBUG) Serial.println(!state);
+
+      TimedAction newAction = {currentMillis + pulseTime, pin, !state};
+      timedActionsVec.push_back(newAction);
+    }
   }
 }
-    
-  }
 
-  
-  
-  
- 
+void changePowerStateReal(int pin, bool state) {
+    if (state) digitalWrite(pin, HIGH);
+    else digitalWrite(pin, LOW);
+}
+
+void returnToClient(EthernetClient client){
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: application/json");
+    client.println("Connection: close");  // the connection will be closed after completion of the response
+    //client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+    client.println();
+    client.println("{}");
+}
 
 void setup() {
   pinMode(48, OUTPUT);
@@ -120,118 +125,133 @@ void setup() {
   // Print the assigned IP address
   Serial.print("IP Address: ");
   Serial.println(Ethernet.localIP());
- 
 
   server.begin();
   Serial.println("HTTP server started");
+
+  currentMillis = millis();
 }
 
-
 void loop(void) {
-  // listen for incoming clients
+  currentMillis = millis();
   EthernetClient client = server.available();
+
   if (client) {
     Serial.println("new client");
-    // an http request ends with a blank line
+
     boolean currentLineIsBlank = true;
     String MSG = "";
 
-    // while (client.connected()) {
-    //   if (client.available()) {
-    //     char c = client.read();
-    //     Serial.write(c);
-    //     MSG += c;
-    //   }
-    // }
-
-    Serial.println("Message is");
-    Serial.println(MSG);
-
+    // Gather Header
     while (client.connected()) {
       if (client.available()) {
         char c = client.read();
-        Serial.write(c);
-        MSG+= c;
-        if (c == '\n' && currentLineIsBlank) {
-          Serial.println("Message is");
-          Serial.println(MSG);
-
-          String Firstline = MSG.substring(0, MSG.indexOf("\n"));
-          Serial.println("Firstline is");
-          Serial.println(Firstline);
-
-          String Method = Firstline.substring(0, Firstline.indexOf(" "));
-          Serial.println("Method Is");
-          Serial.println(Method);
-
-          String Path = Firstline.substring(Firstline.indexOf(" ") + 1, Firstline.indexOf(" ", Firstline.indexOf(" ")+ 1));
-          Serial.println("Path Is");
-          Serial.println(Path);
-
-          String MSG_Remove_Empty_Line = MSG.substring(0, MSG.lastIndexOf("\n") - 2);
-          Serial.println("MSG_Remove_Empty_Line");
-          Serial.println(MSG_Remove_Empty_Line);
-
-          String Lastline = MSG_Remove_Empty_Line.substring(MSG_Remove_Empty_Line.lastIndexOf("\n") + 1, MSG_Remove_Empty_Line.length());
-          Serial.println("Lastline Is");
-          Serial.println(Lastline);
-
-          String ContentLengthSTR = Lastline.substring(Lastline.indexOf(":") + 2 , Lastline.length());
-          Serial.println("ContentLengthSTR Is");
-          Serial.println(ContentLengthSTR);
-
-          int ContentLengthNUM = ContentLengthSTR.toInt();
-
-          String body = "";
-          for(int read = 0; read < ContentLengthNUM; read++) {
-            char c = client.read();
-            body += c;
-          }
-          Serial.println("body Is");
-          Serial.println(body);
-
-
-        
-          if (Method == "POST" ) {
-            if (Path == "/power") {
-              power(body);
-            }
-          } 
-
-
-
-          client.println("HTTP/1.1 200 OK");
-          client.println("Content-Type: text/html");
-          client.println("Connection: close");  // the connection will be closed after completion of the response
-          client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-          client.println();
-          client.println("<!DOCTYPE HTML>");
-          client.println("<html>");
-          // output the value of each analog input pin
-          for (int analogChannel = 0; analogChannel < 6; analogChannel++) {
-            int sensorReading = analogRead(analogChannel);
-            client.print("analog input ");
-            client.print(analogChannel);
-            client.print(" is ");
-            client.print(sensorReading);
-            client.println("<br />");
-          }
-          client.println("</html>");
-          break;
-        }
-        if (c == '\n') {
-          // you're starting a new line
-          currentLineIsBlank = true;
-        } else if (c != '\r') {
-          // you've gotten a character on the current line
-          currentLineIsBlank = false;
-        }
+        if (DEBUG) Serial.write(c);
+        MSG += c;
+        if (c == '\n' && currentLineIsBlank) break;
+        if (c == '\n') currentLineIsBlank = true;
+        else if (c != '\r') currentLineIsBlank = false;
       }
     }
+
+    // Handle Header
+    if (DEBUG) Serial.println("Message is");
+    if (DEBUG) Serial.println(MSG);
+
+    String Firstline = MSG.substring(0, MSG.indexOf("\n"));
+    String Method = Firstline.substring(0, Firstline.indexOf(" "));
+    String Path = Firstline.substring(Firstline.indexOf(" ") + 1, Firstline.indexOf(" ", Firstline.indexOf(" ") + 1));
+
+    if (DEBUG) {
+      Serial.println("Firstline: " + Firstline);
+      Serial.println("Method: " + Method);
+      Serial.println("Path: " + Path);
+    }
+
+    String MSG_Remove_Empty_Line = MSG.substring(0, MSG.lastIndexOf("\n") - 2);
+    if (DEBUG) Serial.println("MSG_Remove_Empty_Line");
+    if (DEBUG) Serial.println(MSG_Remove_Empty_Line);
+
+    String Lastline = MSG_Remove_Empty_Line.substring(MSG_Remove_Empty_Line.lastIndexOf("\n") + 1, MSG_Remove_Empty_Line.length());
+    if (DEBUG) Serial.println("Lastline Is");
+    if (DEBUG) Serial.println(Lastline);
+
+    String ContentLengthSTR = Lastline.substring(Lastline.indexOf(":") + 2 , Lastline.length());
+    if (DEBUG) Serial.println("ContentLengthSTR Is");
+    if (DEBUG) Serial.println(ContentLengthSTR);
+
+    int ContentLengthNUM = ContentLengthSTR.toInt();
+
+    // Handle Body
+    String body = "";
+    while (body.length() < ContentLengthNUM && client.connected()) {
+      if (client.available()) {
+        char c = client.read();
+        body += c;
+      }
+    }
+
+    if (DEBUG) Serial.println("body Is");
+    if (DEBUG) Serial.println(body);
+
+    // call power function(s)
+    if (Method == "POST") {
+      if (Path == "/power") {
+        command(body);
+      }
+    }
+    else if (Method == "GET") {
+        if (Path == "/flashing") {
+            returnToClient(client);
+            status = "flashing";
+            command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}]");
+        }
+        else if (Path == "/boot/1") {
+            returnToClient(client);
+            status = "boot_1";
+            command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}, {\"pin\" : \"boot_1\", \"power\" : true, \"pulse\" : true}]");
+        }
+        else if (Path == "/boot/2") {
+            returnToClient(client);
+            status = "boot_2";
+            command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}, {\"pin\" : \"boot_2\", \"power\" : true, \"pulse\" : true}]");
+        }
+        else if (Path == "/boot/3") {
+            returnToClient(client);
+            status = "boot_3";
+            command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}, {\"pin\" : \"boot_3\", \"power\" : true, \"pulse\" : true}]");
+        }
+        else if (Path == "/boot/4") {
+            returnToClient(client);
+            status = "boot_4";
+            command("[{\"pin\" : \"reset\", \"power\" : false, \"pulse\" : true}, {\"pin\" : \"boot_4\", \"power\" : true, \"pulse\" : true}]");
+        }
+        else if (Path == "/status") {
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-Type: application/json");
+            client.println("Connection: close");  // the connection will be closed after completion of the response
+            //client.println("Refresh: 5");  // refresh the page automatically every 5 sec
+            client.println();
+            client.println("{\"status\": \"" + status + "\"}");
+        }
+
+
+    }
+
     // give the web browser time to receive the data
     delay(1);
     // close the connection:
     client.stop();
     Serial.println("client disconnected");
+  }
+
+  for (int i = 0; i < timedActionsVec.size(); i++) {
+    TimedAction action = timedActionsVec[i];
+
+    if(action.triggerTime <= currentMillis) {
+      changePowerStateReal(action.pin, action.state);
+      timedActionsVec.erase(timedActionsVec.begin() + i);
+      i--;
+    }
   }
 }
