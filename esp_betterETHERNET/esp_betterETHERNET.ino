@@ -13,11 +13,10 @@
 #define W5500_MOSI  11  // MOSI pin
 #define W5500_SCK   13  // Clock pin
 
-#define DEBUG true
+#define DEBUG false
 
-EthernetClient client;
+//EthernetClient client;
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-
 
 const char *ssid = "HIDGuest";          // Change this to your WiFi SSID
 const char *password = "UKCWLinternet!";  // Change this to your WiFi password
@@ -25,61 +24,44 @@ const char *password = "UKCWLinternet!";  // Change this to your WiFi password
 EthernetServer server(80);
 
 // Function that takes the json string (CMD) and then calls another function
-
-
-// changePowerState(String pin, bool state)
-
-void power(const String& CMD) {
+void command(const String& CMD) {
   JsonDocument json;
-	DeserializationError error = deserializeJson(json, CMD);
-  if (error) { Serial.println("Failed to parse"); return; }
-  
-  //server.send(200, "application/json", "{}");
-
-  client.println("HTTP/1.1 200 OK");
-  client.println("Content-Type: application/json");
-  client.println("Connection: close");  
-  //client.println("Refresh: 5");  // refresh the page automatically every 5 sec
-  client.println();
+  DeserializationError error = deserializeJson(json, CMD);
+  if (error) {
+    Serial.println("Failed to parse");
+    return;
+  }
 
   JsonArray array = json.as<JsonArray>();
+  changePowerState(array);
+}
 
-
+void changePowerState(JsonArray array) {
   for (int i = 0; i < array.size(); i++) {
     JsonObject obj = array[i];
     String pinNum = obj["pin"].as<String>();
     bool state = obj["power"];
 
-     int pin = -1; 
-  if (pinNum == "boot_1") {
-    pin = 48;
-  }
-  else if (pinNum == "boot_2") {
-    pin = 47;
-  }
-  else if (pinNum == "boot_3") {
-    pin = 46;
-  }
-  else if (pinNum == "boot_4") {
-    pin = 42;
-  }
-  else if (pinNum == "reset") {
-    pin = 41;
-  }
+    int pin = -1;
+    if (pinNum == "boot_1") {
+      pin = 48;
+    } else if (pinNum == "boot_2") {
+      pin = 47;
+    } else if (pinNum == "boot_3") {
+      pin = 46;
+    } else if (pinNum == "boot_4") {
+      pin = 42;
+    } else if (pinNum == "reset") {
+      pin = 41;
+    }
 
-  if (state) {
-    digitalWrite(pin, HIGH);
-  } else {
-    digitalWrite(pin, LOW);
+    if (state) {
+      digitalWrite(pin, HIGH);
+    } else {
+      digitalWrite(pin, LOW);
+    }
   }
 }
-    
-  }
-
-  
-  
-  
- 
 
 void setup() {
   pinMode(48, OUTPUT);
@@ -101,12 +83,10 @@ void setup() {
   // Print the assigned IP address
   Serial.print("IP Address: ");
   Serial.println(Ethernet.localIP());
- 
 
   server.begin();
   Serial.println("HTTP server started");
 }
-
 
 void loop(void) {
   // listen for incoming clients
@@ -123,38 +103,19 @@ void loop(void) {
         char c = client.read();
         Serial.write(c);
         MSG += c;
-      }
-    }
-
-    if (DEBUG) Serial.println("Message is");
-    if (DEBUG) Serial.println(MSG);
-
-    // 2nd while: Continueing to get input to read body
-
-    // call power function(s)
-
-    // Restructure wile loop to gather and build the MSG,
-    //    but handle the MSG after the while loop instead of inside
-    while (client.connected()) {
-      if (client.available()) {
-        char c = client.read();
-        Serial.write(c);
-        MSG+= c;
         if (c == '\n' && currentLineIsBlank) {
           if (DEBUG) Serial.println("Message is");
           if (DEBUG) Serial.println(MSG);
 
           String Firstline = MSG.substring(0, MSG.indexOf("\n"));
-          if (DEBUG) Serial.println("Firstline is");
-          if (DEBUG) Serial.println(Firstline);
-
           String Method = Firstline.substring(0, Firstline.indexOf(" "));
-          if (DEBUG) Serial.println("Method Is");
-          if (DEBUG) Serial.println(Method);
+          String Path = Firstline.substring(Firstline.indexOf(" ") + 1, Firstline.indexOf(" ", Firstline.indexOf(" ") + 1));
 
-          String Path = Firstline.substring(Firstline.indexOf(" ") + 1, Firstline.indexOf(" ", Firstline.indexOf(" ")+ 1));
-          if (DEBUG) Serial.println("Path Is");
-          if (DEBUG) Serial.println(Path);
+          if (DEBUG) {
+            Serial.println("Firstline: " + Firstline);
+            Serial.println("Method: " + Method);
+            Serial.println("Path: " + Path);
+          }
 
           String MSG_Remove_Empty_Line = MSG.substring(0, MSG.lastIndexOf("\n") - 2);
           if (DEBUG) Serial.println("MSG_Remove_Empty_Line");
@@ -170,32 +131,31 @@ void loop(void) {
 
           int ContentLengthNUM = ContentLengthSTR.toInt();
 
+          // 2nd while: Continuing to get input to read body
           String body = "";
-          for(int read = 0; read < ContentLengthNUM; read++) {
-            char c = client.read();
-            body += c;
+          while (body.length() < ContentLengthNUM && client.connected()) {
+            if (client.available()) {
+              char c = client.read();
+              body += c;
+            }
           }
+
           if (DEBUG) Serial.println("body Is");
           if (DEBUG) Serial.println(body);
 
-
-        
-          if (Method == "POST" ) {
+          // call power function(s)
+          if (Method == "POST") {
             if (Path == "/power") {
-              power(body);
+              command(body);
             }
-          } 
-
-
+          }
 
           client.println("HTTP/1.1 200 OK");
-          client.println("Content-Type: text/html");
+          client.println("Content-Type: application/json");
           client.println("Connection: close");  // the connection will be closed after completion of the response
           client.println("Refresh: 5");  // refresh the page automatically every 5 sec
           client.println();
-          client.println("<!DOCTYPE HTML>");
-          client.println("<html>");
-          // output the value of each analog input pin
+          client.println("{}");
           for (int analogChannel = 0; analogChannel < 6; analogChannel++) {
             int sensorReading = analogRead(analogChannel);
             client.print("analog input ");
@@ -207,6 +167,7 @@ void loop(void) {
           client.println("</html>");
           break;
         }
+
         if (c == '\n') {
           // you're starting a new line
           currentLineIsBlank = true;
@@ -216,6 +177,7 @@ void loop(void) {
         }
       }
     }
+
     // give the web browser time to receive the data
     delay(1);
     // close the connection:
