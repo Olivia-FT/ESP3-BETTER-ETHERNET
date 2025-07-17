@@ -20,9 +20,6 @@ String status = "";
 
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
-const char *ssid = "HIDGuest";          // Change this to your WiFi SSID
-const char *password = "UKCWLinternet!";  // Change this to your WiFi password
-
 EthernetServer server(80);
 
 // Time stuffs
